@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Greg Wientjes | Wall",
+  title: "Greg Wientjes | Wallbook",
   description: "A little corner of the internet to leave Greg a note.",
 };
 

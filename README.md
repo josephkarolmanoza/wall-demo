@@ -29,10 +29,10 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 
 ## Supabase setup
 
-The wall feed uses the existing `public.posts` table in Supabase. Open **SQL Editor** and run [`supabase/schema.sql`](supabase/schema.sql). It adds the author and seed-key columns, read and insert policies, and the example wall posts.
+The feed uses the existing `public.posts` table in Supabase. Open **SQL Editor** and run [`supabase/schema.sql`](supabase/schema.sql). It adds author, avatar, and image URL columns; creates the likes and comments tables and their access policies; configures the public `avatars` and `post-images` storage buckets; and inserts the example posts.
 
 In **Project Settings → API Keys**, copy the Project URL and a Publishable key. Put them in a local `.env.local` file using the names shown in [`.env.example`](.env.example).
 
 Add the same values to your Vercel project under **Settings → Environment Variables** for Production and Preview, then redeploy. Do not use a Supabase Secret or `service_role` key. The current public wall allows visitors to read and post messages; RLS policies in the SQL file enforce that access and the 280-character limit.
 
-The editable profile name and uploaded avatar are still stored in each visitor's browser. Wall posts are shared through Supabase.
+Editable profile details and a random visitor ID are stored in each visitor's browser. Uploaded profile photos, post images, posts, likes, and comments are stored in Supabase. A browser can add one like per post and toggle it off again; comments use the visitor's current profile name and photo.

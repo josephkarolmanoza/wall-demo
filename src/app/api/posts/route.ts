@@ -15,9 +15,10 @@ function errorResponse(error: unknown, fallback: string) {
   return Response.json({ error: detail ? `${fallback} ${detail}` : fallback }, { status: 500 });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    return Response.json(await getWallPosts(), {
+    const visitorId = new URL(request.url).searchParams.get("visitorId") ?? "";
+    return Response.json(await getWallPosts(visitorId), {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
   } catch (error) {
@@ -39,9 +40,15 @@ export async function POST(request: Request) {
   const name = typeof body === "object" && body !== null && "name" in body
     ? (body as { name: unknown }).name
     : undefined;
+  const avatarUrl = typeof body === "object" && body !== null && "avatarUrl" in body
+    ? (body as { avatarUrl: unknown }).avatarUrl
+    : null;
+  const imageUrl = typeof body === "object" && body !== null && "imageUrl" in body
+    ? (body as { imageUrl: unknown }).imageUrl
+    : null;
 
-  if (typeof message !== "string" || !message.trim()) {
-    return Response.json({ error: "Write a message before sharing." }, { status: 400 });
+  if (typeof message !== "string") {
+    return Response.json({ error: "Write a message or attach an image before sharing." }, { status: 400 });
   }
 
   const trimmedMessage = message.trim();
@@ -53,8 +60,26 @@ export async function POST(request: Request) {
     return Response.json({ error: "Add a username of 1 to 40 characters before sharing." }, { status: 400 });
   }
 
+  const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publicAvatarPrefix = supabaseUrl
+    ? `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/avatars/`
+    : null;
+  if (avatarUrl !== null && (typeof avatarUrl !== "string" || !publicAvatarPrefix || !avatarUrl.startsWith(publicAvatarPrefix))) {
+    return Response.json({ error: "Choose a profile photo stored in this app's Supabase project." }, { status: 400 });
+  }
+
+  const publicPostImagePrefix = supabaseUrl
+    ? `${supabaseUrl.replace(/\/$/, "")}/storage/v1/object/public/post-images/`
+    : null;
+  if (imageUrl !== null && (typeof imageUrl !== "string" || !publicPostImagePrefix || !imageUrl.startsWith(publicPostImagePrefix))) {
+    return Response.json({ error: "Choose a post image stored in this app's Supabase project." }, { status: 400 });
+  }
+  if (!trimmedMessage && imageUrl === null) {
+    return Response.json({ error: "Write a message or attach an image before sharing." }, { status: 400 });
+  }
+
   try {
-    const post = await createWallPost(trimmedMessage, name.trim());
+    const post = await createWallPost(trimmedMessage, name.trim(), avatarUrl as string | null, imageUrl as string | null);
     return Response.json(post, { status: 201 });
   } catch (error) {
     return errorResponse(error, "Your message could not be saved. Please try again.");
