@@ -19,6 +19,8 @@
 
 # production
 /build
+/data/wall-posts.json
+/data/wall-posts.json.tmp
 
 # misc
 .DS_Store

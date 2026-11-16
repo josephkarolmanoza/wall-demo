@@ -1,103 +1,186 @@
-import Image from "next/image";
+"use client";
+
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+
+const defaultUsername = "Greg Wientjes";
+type WallPost = { id: number; name: string; message: string; createdAt: string };
+
+function formatPostTime(createdAt: string) {
+  const elapsedMinutes = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 60_000));
+  if (elapsedMinutes < 1) return "now";
+  if (elapsedMinutes < 60) return `${elapsedMinutes}m`;
+  const elapsedHours = Math.floor(elapsedMinutes / 60);
+  if (elapsedHours < 24) return `${elapsedHours}h`;
+  return `${Math.floor(elapsedHours / 24)}d`;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [posts, setPosts] = useState<WallPost[]>([]);
+  const [message, setMessage] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+  const [status, setStatus] = useState("");
+  const [username, setUsername] = useState(defaultUsername);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [photoError, setPhotoError] = useState("");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+  const nameParts = username.trim().split(/\s+/).filter(Boolean);
+  const initials = nameParts.length > 1
+    ? `${Array.from(nameParts[0])[0]}${Array.from(nameParts[nameParts.length - 1])[0]}`.toUpperCase()
+    : Array.from(nameParts[0] ?? "?").slice(0, 2).join("").toUpperCase();
+
+  useEffect(() => {
+    try {
+      const savedUsername = window.localStorage.getItem("wall.username");
+      const savedImage = window.localStorage.getItem("wall.profileImage");
+      if (savedUsername) setUsername(savedUsername);
+      if (savedImage) setProfileImage(savedImage);
+    } catch {
+      // The profile still works for this session if browser storage is unavailable.
+    }
+    setProfileLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!profileLoaded) return;
+    try {
+      window.localStorage.setItem("wall.username", username);
+      if (profileImage) window.localStorage.setItem("wall.profileImage", profileImage);
+      else window.localStorage.removeItem("wall.profileImage");
+    } catch {
+      setPhotoError("This browser couldn't save your profile changes.");
+    }
+  }, [profileImage, profileLoaded, username]);
+
+  useEffect(() => {
+    let active = true;
+    const refreshFeed = async () => {
+      try {
+        const response = await fetch("/api/posts", { cache: "no-store" });
+        if (!response.ok) throw new Error("Feed request failed");
+        const latestPosts = await response.json();
+        if (active) setPosts(latestPosts);
+      } catch {
+        if (active) setStatus("Couldn't refresh the wall. Retrying shortly…");
+      }
+    };
+
+    void refreshFeed();
+    const interval = window.setInterval(refreshFeed, 4000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  async function uploadProfilePhoto(event: ChangeEvent<HTMLInputElement>) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file) return;
+    setPhotoError("");
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("Choose an image file to use as your profile photo.");
+      input.value = "";
+      return;
+    }
+
+    try {
+      const image = await createImageBitmap(file);
+      const scale = Math.min(1, 700 / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Could not prepare that image.");
+      context.fillStyle = "#f5f5f5";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      image.close();
+      const imageData = canvas.toDataURL("image/jpeg", 0.82);
+      if (imageData.length > 2_500_000) throw new Error("That image is too large. Please choose a smaller one.");
+      setProfileImage(imageData);
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : "That photo couldn't be uploaded.");
+    } finally {
+      input.value = "";
+    }
+  }
+
+  async function addPost(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = message.trim();
+    const authorName = username.trim();
+    if (!trimmed || trimmed.length > 280 || !authorName || authorName.length > 40 || isPosting) return;
+    setIsPosting(true);
+    setStatus("");
+    try {
+      const response = await fetch("/api/posts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed, name: authorName }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Your message could not be shared.");
+      setPosts((currentPosts) => [result, ...currentPosts.filter((post) => post.id !== result.id)]);
+      setMessage("");
+      setStatus("Your message is on the wall!");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Your message could not be shared.");
+    } finally {
+      setIsPosting(false);
+    }
+  }
+
+  return (
+    <main className="page-shell">
+      <header className="topbar"><a href="#top" className="brand" id="top">wall</a></header>
+
+      <div className="layout">
+        <aside className="profile-column" aria-label={`${username || "Your"} profile`}>
+          <div className="portrait-group">
+            <div className={`portrait-wrap${profileImage ? " has-photo" : ""}`} style={profileImage ? { backgroundImage: `url("${profileImage}")` } : undefined}>
+              <span className="sr-only">Profile photo for {username || "your profile"}</span>
+              {!profileImage && <span className="portrait-initials" aria-hidden="true">{initials}</span>}
+              <input className="sr-only" id="profile-photo" type="file" accept="image/*" onChange={uploadProfilePhoto} aria-describedby="photo-error" />
+              <label className="portrait-caption" htmlFor="profile-photo">{profileImage ? "Change photo" : "Upload photo"}</label>
+            </div>
+            <p className="photo-error" id="photo-error" role="status">{photoError}</p>
+          </div>
+          <div className="profile-identity">
+            <label className="sr-only" htmlFor="profile-name">Edit your username</label>
+            <input id="profile-name" className="username-input" value={username} maxLength={40} onChange={(event) => setUsername(event.target.value)} aria-label="Edit your username" />
+            <p className="profile-subtitle">wall</p>
+          </div>
+          <section className="info-card">
+            <h2 className="info-heading">Information</h2>
+            <div className="info-content hatched-card">
+              <div><h3>Networks</h3><p>Stanford Alum</p></div>
+              <div><h3>Current City</h3><p>Palo Alto, CA</p></div>
+            </div>
+          </section>
+        </aside>
+
+        <section className="wall-column" aria-label={`${username || "Your"}’s wall`}>
+          <form className="composer" id="wall-form" onSubmit={addPost}>
+            <label className="sr-only" htmlFor="wall-message">Write on {username || "your"}’s wall</label>
+            <textarea id="wall-message" value={message} maxLength={280} onChange={(event) => setMessage(event.target.value)} placeholder="What's on your mind?" rows={3} aria-describedby="wall-message-count wall-status" />
+          </form>
+          <div className="share-row">
+            <span className="character-count" id="wall-message-count">{280 - message.length} characters remaining</span>
+            <Button className="share-button" type="submit" form="wall-form" disabled={isPosting || !message.trim() || !username.trim()}>{isPosting ? "Sharing…" : "Share"}</Button>
+          </div>
+          <p className="status-message" id="wall-status" role="status">{status}</p>
+
+          <div className="feed" aria-live="polite">
+            {posts.map((post) => <article className="post" key={post.id}>
+              <div className="post-heading"><h2>{post.name}</h2><time dateTime={post.createdAt}>{formatPostTime(post.createdAt)}</time></div>
+              <p>{post.message}</p>
+            </article>)}
+          </div>
+          <footer className="wall-footer">A wall full of good people <span aria-hidden="true">✳</span></footer>
+        </section>
+      </div>
+    </main>
   );
 }
