@@ -27,10 +27,12 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## Vercel database setup
+## Supabase setup
 
-The wall feed needs a Postgres database on Vercel. In your Vercel project, open **Storage**, add a **Neon Postgres** database from the Marketplace, and connect it to the Production and Preview environments. The integration provides the `DATABASE_URL` environment variable.
+The wall feed uses the existing `public.posts` table in Supabase. Open **SQL Editor** and run [`supabase/schema.sql`](supabase/schema.sql). It adds the author and seed-key columns, read and insert policies, and the example wall posts.
 
-After connecting the database, redeploy the project. The app creates its `wall_posts` table and example posts automatically. Local development without `DATABASE_URL` continues to use the ignored `data/wall-posts.json` file.
+In **Project Settings → API Keys**, copy the Project URL and a Publishable key. Put them in a local `.env.local` file using the names shown in [`.env.example`](.env.example).
 
-Vercel integrations add credentials as environment variables to the project; changes to environment variables apply to new deployments, so a redeploy is required. See [Vercel Storage integrations](https://vercel.com/docs/marketplace-storage) and [Vercel environment variables](https://vercel.com/docs/environment-variables).
+Add the same values to your Vercel project under **Settings → Environment Variables** for Production and Preview, then redeploy. Do not use a Supabase Secret or `service_role` key. The current public wall allows visitors to read and post messages; RLS policies in the SQL file enforce that access and the 280-character limit.
+
+The editable profile name and uploaded avatar are still stored in each visitor's browser. Wall posts are shared through Supabase.

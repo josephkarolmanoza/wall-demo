@@ -4,7 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const defaultUsername = "Greg Wientjes";
-type WallPost = { id: number; name: string; message: string; createdAt: string };
+type WallPost = { id: number | string; name: string; message: string; createdAt: string };
 
 function formatPostTime(createdAt: string) {
   const elapsedMinutes = Math.max(0, Math.floor((Date.now() - Date.parse(createdAt)) / 60_000));

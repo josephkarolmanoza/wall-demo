@@ -6,7 +6,13 @@ function errorResponse(error: unknown, fallback: string) {
   if (error instanceof WallStorageConfigurationError) {
     return Response.json({ error: error.message }, { status: 503 });
   }
-  return Response.json({ error: fallback }, { status: 500 });
+  const detail = error instanceof Error
+    ? error.message
+    : typeof error === "object" && error !== null && "message" in error && typeof error.message === "string"
+      ? error.message
+      : "";
+  if (detail) console.error("Wall storage error:", detail);
+  return Response.json({ error: detail ? `${fallback} ${detail}` : fallback }, { status: 500 });
 }
 
 export async function GET() {
