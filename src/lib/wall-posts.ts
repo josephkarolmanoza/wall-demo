@@ -1,7 +1,15 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { neon } from "@neondatabase/serverless";
 
 export type WallPost = { id: number; name: string; message: string; createdAt: string };
+
+export class WallStorageConfigurationError extends Error {
+  constructor() {
+    super("The wall needs a Postgres database. Add a Neon database to this Vercel project and redeploy.");
+    this.name = "WallStorageConfigurationError";
+  }
+}
 
 const dataDirectory = path.join(process.cwd(), "data");
 const dataFile = path.join(dataDirectory, "wall-posts.json");
@@ -36,6 +44,53 @@ function sortNewestFirst(posts: Partial<WallPost>[]): WallPost[] {
   }).sort((first, second) => Date.parse(second.createdAt) - Date.parse(first.createdAt));
 }
 
+function fromDatabaseRow(row: { id: number | string; name: string; message: string; createdAt: string | Date }): WallPost {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    message: row.message,
+    createdAt: new Date(row.createdAt).toISOString(),
+  };
+}
+
+let databaseSetup: Promise<void> | undefined;
+
+async function connectDatabase() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    if (process.env.VERCEL) throw new WallStorageConfigurationError();
+    return null;
+  }
+
+  const sql = neon(connectionString);
+  if (!databaseSetup) {
+    databaseSetup = (async () => {
+      await sql`CREATE TABLE IF NOT EXISTS wall_posts (
+        id BIGSERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        message TEXT NOT NULL CHECK (char_length(message) <= 280),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        seed_key TEXT UNIQUE
+      )`;
+
+      for (const post of examplePosts) {
+        await sql`INSERT INTO wall_posts (name, message, created_at, seed_key)
+          VALUES (${post.name}, ${post.message}, ${post.createdAt}, ${`example-${post.id}`})
+          ON CONFLICT (seed_key) DO NOTHING`;
+      }
+    })();
+  }
+
+  try {
+    await databaseSetup;
+  } catch (error) {
+    databaseSetup = undefined;
+    throw error;
+  }
+
+  return sql;
+}
+
 async function readFromDisk(): Promise<WallPost[]> {
   await mkdir(dataDirectory, { recursive: true });
   try {
@@ -49,12 +104,27 @@ async function readFromDisk(): Promise<WallPost[]> {
 
 let writeQueue: Promise<void> = Promise.resolve();
 
-export async function getWallPosts() {
+export async function getWallPosts(): Promise<WallPost[]> {
+  const sql = await connectDatabase();
+  if (sql) {
+    const rows = await sql`SELECT id, name, message, created_at AS "createdAt"
+      FROM wall_posts ORDER BY created_at DESC, id DESC`;
+    return rows.map((row) => fromDatabaseRow(row as { id: number | string; name: string; message: string; createdAt: string | Date }));
+  }
+
   await writeQueue;
   return sortNewestFirst(await readFromDisk());
 }
 
-export function createWallPost(message: string, name: string) {
+export async function createWallPost(message: string, name: string): Promise<WallPost> {
+  const sql = await connectDatabase();
+  if (sql) {
+    const rows = await sql`INSERT INTO wall_posts (name, message)
+      VALUES (${name}, ${message})
+      RETURNING id, name, message, created_at AS "createdAt"`;
+    return fromDatabaseRow(rows[0] as { id: number | string; name: string; message: string; createdAt: string | Date });
+  }
+
   const operation = writeQueue.then(async () => {
     const posts = sortNewestFirst(await readFromDisk());
     const post: WallPost = { id: Date.now(), name, message, createdAt: new Date().toISOString() };

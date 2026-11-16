@@ -58,11 +58,11 @@ export default function Home() {
     const refreshFeed = async () => {
       try {
         const response = await fetch("/api/posts", { cache: "no-store" });
-        if (!response.ok) throw new Error("Feed request failed");
         const latestPosts = await response.json();
+        if (!response.ok) throw new Error(latestPosts.error ?? "Feed request failed");
         if (active) setPosts(latestPosts);
-      } catch {
-        if (active) setStatus("Couldn't refresh the wall. Retrying shortly…");
+      } catch (error) {
+        if (active) setStatus(error instanceof Error ? error.message : "Couldn't refresh the wall. Retrying shortly…");
       }
     };
 
